@@ -1,0 +1,5 @@
+erampage
+erampage.log
+obj/*
+eobj/*
+rsrc/game_banner.c
