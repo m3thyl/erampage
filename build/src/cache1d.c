@@ -5,6 +5,8 @@
 // This file has been modified from Ken Silverman's original release
 // by Jonathon Fowler (jonof@edgenetwk.com)
 
+#define WITHKPLIB
+
 #include "compat.h"
 #include "cache1d.h"
 #include "pragmas.h"
@@ -18,7 +20,7 @@
 static intptr_t kzipopen(char *filnam)
 {
     uint32_t i;
-    char newst[BMAX_PATH+8];
+    char newst[BMAX_PATH+4];
 
     newst[0] = '|';
     for (i=0; filnam[i] && (i < sizeof(newst)-2); i++) newst[i+1] = filnam[i];
@@ -70,6 +72,9 @@ static int32_t lockrecip[200];
 
 static char toupperlookup[256];
 
+extern void *kmalloc(size_t);
+extern void kfree(void *);
+
 static void reportandexit(char *errormessage);
 
 extern char pow2char[8];
@@ -88,7 +93,7 @@ void initcache(intptr_t dacachestart, int32_t dacachesize)
     //   initcache((FP_OFF(pic)+15)&0xfffffff0,(cachesize-((-FP_OFF(pic))&15))&0xfffffff0);
     //
     // I'm not sure why it's necessary, but the code is making sure the
-    // cache starts on a multiple of 16 bytes?  -- SA
+    // cache starts on a multiple of 16 bytes??  -- SA
 
 //printf("BEFORE: cachestart = %x, cachesize = %d\n", dacachestart, dacachesize);
     cachestart = ((uintptr_t)dacachestart+15)&~(uintptr_t)0xf;
@@ -210,17 +215,18 @@ void suckcache(intptr_t *suckptr)
 
 void agecache(void)
 {
-    int32_t cnt = (cacnum>>4);
+    int32_t cnt;
+    char ch;
 
     if (agecount >= cacnum) agecount = cacnum-1;
-    if (agecount < 0 || !cnt) return;
-    for (; cnt>=0; cnt--)
+    if (agecount < 0) return;
+    for (cnt=(cacnum>>4); cnt>=0; cnt--)
     {
-        if ((((*cac[agecount].lock)-2)&255) < 198)
-            (*cac[agecount].lock)--;
+        ch = (*cac[agecount].lock);
+        if (((ch-2)&255) < 198)
+            (*cac[agecount].lock) = ch-1;
 
-        agecount--;
-        if (agecount < 0) agecount = cacnum-1;
+        agecount--; if (agecount < 0) agecount = cacnum-1;
     }
 }
 
@@ -272,15 +278,15 @@ int32_t addsearchpath(const char *p)
     }
     if (!(st.st_mode & BS_IFDIR)) return -1;
 
-    srch = (searchpath_t*)Bmalloc(sizeof(searchpath_t));
+    srch = (searchpath_t*)malloc(sizeof(searchpath_t));
     if (!srch) return -1;
 
     srch->next    = searchpathhead;
     srch->pathlen = strlen(p)+1;
-    srch->path    = (char*)Bmalloc(srch->pathlen + 1);
+    srch->path    = (char*)malloc(srch->pathlen + 1);
     if (!srch->path)
     {
-        Bfree(srch);
+        free(srch);
         return -1;
     }
     strcpy(srch->path, p);
@@ -310,13 +316,13 @@ int32_t findfrompath(const char *fn, char **where)
         // test unmolested filename first
         if (access(fn, F_OK) >= 0)
         {
-            *where = Bstrdup(fn);
+            *where = strdup(fn);
             return 0;
         }
     }
 
     for (pfn = (char*)fn; toupperlookup[*pfn] == '/'; pfn++);
-    ffn = Bstrdup(pfn);
+    ffn = strdup(pfn);
     if (!ffn) return -1;
     Bcorrectfilename(ffn,0);	// compress relative paths
 
@@ -324,15 +330,15 @@ int32_t findfrompath(const char *fn, char **where)
     allocsiz += strlen(ffn);
     allocsiz += 1;	// a nul
 
-    pfn = (char *)Bmalloc(allocsiz);
-    if (!pfn) { Bfree(ffn); return -1; }
+    pfn = (char *)malloc(allocsiz);
+    if (!pfn) { free(ffn); return -1; }
 
     strcpy(pfn, "./");
     strcat(pfn, ffn);
     if (access(pfn, F_OK) >= 0)
     {
         *where = pfn;
-        Bfree(ffn);
+        free(ffn);
         return 0;
     }
 
@@ -344,11 +350,11 @@ int32_t findfrompath(const char *fn, char **where)
         if (access(pfn, F_OK) >= 0)
         {
             *where = pfn;
-            Bfree(ffn);
+            free(ffn);
             return 0;
         }
     }
-    Bfree(pfn); Bfree(ffn);
+    free(pfn); free(ffn);
     return -1;
 }
 
@@ -359,7 +365,7 @@ int32_t openfrompath(const char *fn, int32_t flags, int32_t mode)
 
     if (findfrompath(fn, &pfn) < 0) return -1;
     h = Bopen(pfn, flags, mode);
-    Bfree(pfn);
+    free(pfn);
 
     return h;
 }
@@ -392,6 +398,10 @@ BFILE* fopenfrompath(const char *fn, const char *mode)
     return h;
 }
 
+
+#define MAXGROUPFILES 8     //Warning: Fix groupfil if this is changed
+#define MAXOPENFILES 64     //Warning: Fix filehan if this is changed
+
 static char toupperlookup[256] =
 {
     0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
@@ -419,7 +429,7 @@ static int32_t groupfilpos[MAXGROUPFILES];
 static char *gfilelist[MAXGROUPFILES];
 static int32_t *gfileoffs[MAXGROUPFILES];
 
-char filegrp[MAXOPENFILES];
+static char filegrp[MAXOPENFILES];
 static int32_t filepos[MAXOPENFILES];
 static intptr_t filehan[MAXOPENFILES] =
 {
@@ -451,17 +461,17 @@ int32_t initgroupfile(char *filename)
 
     // check to see if the file passed is a ZIP and pass it on to kplib if it is
     i = Bopen(zfn,BO_BINARY|BO_RDONLY,BS_IREAD);
-    if (i < 0) { Bfree(zfn); return -1; }
+    if (i < 0) { free(zfn); return -1; }
 
     Bread(i, buf, 4);
     if (buf[0] == 0x50 && buf[1] == 0x4B && buf[2] == 0x03 && buf[3] == 0x04)
     {
         Bclose(i);
         j = kzaddstack(zfn);
-        Bfree(zfn);
+        free(zfn);
         return j;
     }
-    Bfree(zfn);
+    free(zfn);
 
     if (numgroupfiles >= MAXGROUPFILES) return(-1);
 
@@ -485,9 +495,9 @@ int32_t initgroupfile(char *filename)
         }
         gnumfiles[numgroupfiles] = B_LITTLE32(*((int32_t *)&buf[12]));
 
-        if ((gfilelist[numgroupfiles] = (char *)Bmalloc(gnumfiles[numgroupfiles]<<4)) == 0)
+        if ((gfilelist[numgroupfiles] = (char *)kmalloc(gnumfiles[numgroupfiles]<<4)) == 0)
             { Bprintf("Not enough memory for file grouping system\n"); exit(0); }
-        if ((gfileoffs[numgroupfiles] = (int32_t *)Bmalloc((gnumfiles[numgroupfiles]+1)<<2)) == 0)
+        if ((gfileoffs[numgroupfiles] = (int32_t *)kmalloc((gnumfiles[numgroupfiles]+1)<<2)) == 0)
             { Bprintf("Not enough memory for file grouping system\n"); exit(0); }
 
         Bread(groupfil[numgroupfiles],gfilelist[numgroupfiles],gnumfiles[numgroupfiles]<<4);
@@ -513,8 +523,8 @@ void uninitsinglegroupfile(int32_t grphandle)
     for (i=numgroupfiles-1; i>=0; i--)
         if (groupfil[i] != -1 && groupfil[i] == grphandle)
         {
-            Bfree(gfilelist[i]);
-            Bfree(gfileoffs[i]);
+            kfree(gfilelist[i]);
+            kfree(gfileoffs[i]);
             Bclose(groupfil[i]);
             groupfil[i] = -1;
             grpnum = i;
@@ -557,8 +567,8 @@ void uninitgroupfile(void)
     for (i=numgroupfiles-1; i>=0; i--)
         if (groupfil[i] != -1)
         {
-            Bfree(gfilelist[i]);
-            Bfree(gfileoffs[i]);
+            kfree(gfilelist[i]);
+            kfree(gfileoffs[i]);
             Bclose(groupfil[i]);
             groupfil[i] = -1;
         }
@@ -574,10 +584,11 @@ void uninitgroupfile(void)
 
 int32_t kopen4load(char *filename, char searchfirst)
 {
-    int32_t  j, k, fil, newhandle = MAXOPENFILES-1;
+    int32_t  j, k, fil, newhandle;
     char bad, *gfileptr;
     intptr_t i;
 
+    newhandle = MAXOPENFILES-1;
     while (filehan[newhandle] != -1)
     {
         newhandle--;
@@ -588,13 +599,14 @@ int32_t kopen4load(char *filename, char searchfirst)
         }
     }
 
-    if (searchfirst == 0 && (fil = openfrompath(filename,BO_BINARY|BO_RDONLY,S_IREAD)) >= 0)
-    {
-        filegrp[newhandle] = 255;
-        filehan[newhandle] = fil;
-        filepos[newhandle] = 0;
-        return(newhandle);
-    }
+    if (searchfirst == 0)
+        if ((fil = openfrompath(filename,BO_BINARY|BO_RDONLY,S_IREAD)) >= 0)
+        {
+            filegrp[newhandle] = 255;
+            filehan[newhandle] = fil;
+            filepos[newhandle] = 0;
+            return(newhandle);
+        }
 
     for (; toupperlookup[*filename] == '/'; filename++);
 
@@ -633,7 +645,7 @@ int32_t kopen4load(char *filename, char searchfirst)
                 }
                 if (bad) continue;
                 if (j<13 && gfileptr[j]) continue;   // JBF: because e1l1.map might exist before e1l1
-                if (j==13 && filename[j]) continue;   // JBF: long file name
+                if (j==13 && filename[j]) continue;   // JBF: int32_t file name
 
                 filegrp[newhandle] = k;
                 filehan[newhandle] = i;
@@ -647,10 +659,10 @@ int32_t kopen4load(char *filename, char searchfirst)
 
 int32_t kread(int32_t handle, void *buffer, int32_t leng)
 {
-    int32_t i;
-    int32_t filenum = filehan[handle];
-    int32_t groupnum = filegrp[handle];
+    int32_t i, filenum, groupnum;
 
+    filenum = filehan[handle];
+    groupnum = filegrp[handle];
     if (groupnum == 255) return(Bread(filenum,buffer,leng));
 #ifdef WITHKPLIB
     else if (groupnum == 254)
@@ -838,7 +850,7 @@ static int32_t klistaddentry(CACHE1D_FIND_REC **rec, char *name, int32_t type, i
         return 0;
     }
 
-    r = (CACHE1D_FIND_REC *)Bmalloc(sizeof(CACHE1D_FIND_REC)+strlen(name)+1);
+    r = (CACHE1D_FIND_REC *)malloc(sizeof(CACHE1D_FIND_REC)+strlen(name)+1);
     if (!r) return -1;
     r->name = (char*)r + sizeof(CACHE1D_FIND_REC); strcpy(r->name, name);
     r->type = type;
@@ -870,7 +882,7 @@ void klistfree(CACHE1D_FIND_REC *rec)
     while (rec)
     {
         n = rec->next;
-        Bfree(rec);
+        free(rec);
         rec = n;
     }
 }
@@ -883,7 +895,7 @@ CACHE1D_FIND_REC *klistpath(const char *_path, const char *mask, int32_t type)
     // pathsearchmode == 0: enumerates a path in the virtual filesystem
     // pathsearchmode == 1: enumerates the system filesystem path passed in
 
-    path = Bstrdup(_path);
+    path = strdup(_path);
     if (!path) return NULL;
 
     // we don't need any leading dots and slashes or trailing slashes either
@@ -967,7 +979,7 @@ CACHE1D_FIND_REC *klistpath(const char *_path, const char *mask, int32_t type)
 
     if (!pathsearchmode)  	// next, zip files
     {
-        char buf[BMAX_PATH+4];
+        char buf[BMAX_PATH];
         int32_t i, j, ftype;
         strcpy(buf,path);
         if (*path) strcat(buf,"/");
@@ -1067,18 +1079,18 @@ CACHE1D_FIND_REC *klistpath(const char *_path, const char *mask, int32_t type)
             {
                 if (klistaddentry(&rec, drp, CACHE1D_FIND_DRIVE, CACHE1D_SOURCE_DRIVE) < 0)
                 {
-                    Bfree(drives);
+                    free(drives);
                     goto failure;
                 }
             }
-            Bfree(drives);
+            free(drives);
         }
     }
 
-    Bfree(path);
+    free(path);
     return rec;
 failure:
-    Bfree(path);
+    free(path);
     klistfree(rec);
     return NULL;
 }

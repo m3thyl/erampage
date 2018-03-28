@@ -12,8 +12,6 @@
 extern "C" {
 #endif
 
-#define SYSTEM_POOL_SIZE (128 * 1048576)
-
 extern int32_t _buildargc;
 extern const char **_buildargv;
 
@@ -44,13 +42,13 @@ struct glinfo {
     const char *version;
     const char *extensions;
 
-    float maxanisotropy;
-    char bgra;
-    char clamptoedge;
-    char texcompr;
-    char texnpot;
-    char multisample;
-    char nvmultisamplehint;
+	float maxanisotropy;
+	char bgra;
+	char clamptoedge;
+	char texcompr;
+	char texnpot;
+	char multisample;
+	char nvmultisamplehint;
     char arbfp;
     char depthtex;
     char shadow;
@@ -61,11 +59,8 @@ struct glinfo {
     char vbos;
     char vsync;
     char sm4;
-    char occlusionqueries;
-    char glsl;
     char dumped;
 };
-
 extern struct glinfo glinfo;
 extern void setvsync(int32_t sync);
 #endif
@@ -97,7 +92,6 @@ void debugprintf(const char *,...);
 
 int32_t handleevents(void);
 extern inline void idle(void);
-extern inline void idle_waitevent(void);
 
 typedef void (*KeyPressCallback)(int32_t,int32_t);
 typedef void (*MousePressCallback)(int32_t,int32_t);

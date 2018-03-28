@@ -163,7 +163,13 @@ void copybufreverse(void *S, void *D, int32_t c)
             );
 }
 
-#elif defined(_MSC_VER) && !defined(NOASM)		// __GNUC__ && __i386__
+#elif defined(__WATCOMC__) && !defined(NOASM)	// __GNUC__ && __i386__
+
+//
+// Watcom C Inline Assembler version
+//
+
+#elif defined(_MSC_VER) && !defined(NOASM)		// __WATCOMC__
 
 //
 // Microsoft C Inline Assembler version

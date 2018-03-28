@@ -930,12 +930,7 @@ enum ScriptKeywords_t {
     CON_LEAVETRAX,    //379
     CON_DEPLOYBIAS,    //380
     CON_IFACTORHEALTHG, //381
-    CON_RNDMOVE, //382 !!!!!!!!!!!!!!!!!!!!!!!!
-    CON_INV,                // 346
-    CON_SECTOROFWALL,       // 347
-    CON_QSTRNCAT,           // 348
-    CON_IFACTORSOUND,       // 349
-    CON_STOPACTORSOUND,     // 350
+    CON_RNDMOVE, //382
     CON_END
 };
 #endif

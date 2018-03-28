@@ -59,12 +59,11 @@ void setupslopevlin(int32_t logylogx, intptr_t bufplc, int32_t pinc)
 }
 void slopevlin(intptr_t p, int32_t i, intptr_t slopaloffs, int32_t cnt, int32_t bx, int32_t by)
 {
-    intptr_t* slopalptr;
-    int32_t bz, bzinc;
+    int32_t *slopalptr, bz, bzinc;
     uint32_t u, v;
 
     bz = asm3; bzinc = (asm1>>3);
-    slopalptr = (intptr_t*)slopaloffs;
+    slopalptr = (int32_t*)slopaloffs;
     for (; cnt>0; cnt--)
     {
         i = krecip(bz>>6); bz += bzinc;

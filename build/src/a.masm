@@ -111,8 +111,9 @@ CDECLENDSET MACRO numparams:REQ
 	CDECLEND numparams
 ENDM
 
-code segment 'CODE' PUBLIC USE32
+CODE SEGMENT PUBLIC USE32 'CODE'
 ASSUME cs:CODE,ds:CODE
+
 PUBLIC _dep_begin
 _dep_begin:
 
@@ -2664,5 +2665,5 @@ pentiumpro:
 
 PUBLIC _dep_end
 _dep_end:
-code ends
-END 
+CODE ENDS
+END

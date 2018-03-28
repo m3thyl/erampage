@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/stat.h>
 
 extern char inputloc;
-extern int32_t g_demo_recFilePtr;
+extern int32_t recfilep;
 //extern char vgacompatible;
 int16_t g_skillSoundID=-1;
 int32_t probey=0;
@@ -57,8 +57,8 @@ extern int32_t voting;
 
 #define USERMAPENTRYLENGTH 25
 
-#define mgametext(x,y,t,s,dabits) G_PrintGameText(2,STARTALPHANUM, x,y,t,s,0,dabits,0, 0, xdim-1, ydim-1, 65536)
-#define mgametextpal(x,y,t,s,p) G_PrintGameText(2,STARTALPHANUM, x,y,t,s,p,26,0, 0, xdim-1, ydim-1, 65536)
+#define mgametext(x,y,t,s,dabits) gametext_z(2,STARTALPHANUM, x,y,t,s,0,dabits,0, 0, xdim-1, ydim-1, 65536)
+#define mgametextpal(x,y,t,s,p) gametext_z(2,STARTALPHANUM, x,y,t,s,p,26,0, 0, xdim-1, ydim-1, 65536)
 
 void ChangeToMenu(int32_t cm) {
     g_currentMenu = cm;
@@ -476,7 +476,7 @@ static int32_t getfilenames(const char *path, char kind[]) {
     return(0);
 }
 
-extern int32_t g_quitDeadline;
+extern int32_t quittimer;
 
 void G_CheckPlayerColor(int32_t *color, int32_t prev_color) {
     int32_t i, disallowed[] = { 1, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 22 };
@@ -571,7 +571,7 @@ void M_DisplayMenus(void) {
 
         x = M_Probe(186,124,0,1);
         if (x >= -1) {
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -592,7 +592,7 @@ void M_DisplayMenus(void) {
 
         mgametext(160,104+8,"PLEASE READ THE 'HOW TO ORDER' ITEM",0,2+8+16);
         mgametext(160,113+8,"ON THE MAIN MENU OR VISIT",0,2+8+16);
-        mgametext(160,122+8,"HTTP://WWW.EDUKE32.COM",0,2+8+16);
+        mgametext(160,122+8,"HTTP://WWW.BUY3DREALMS.COM",0,2+8+16);
         mgametext(160,131+8,"TO UPGRADE TO THE FULL REGISTERED",0,2+8+16);
         mgametext(160,139+8,"VERSION OF DUKE NUKEM 3D.",0,2+8+16);
         mgametext(160,148+16,"PRESS ANY KEY...",0,2+8+16);
@@ -637,6 +637,9 @@ void M_DisplayMenus(void) {
                 "-",
                 "Switch weapons on pickup",
                 "Switch weapons when empty",
+                "-",
+                "-",
+                "Net packets per second",
                 "-",
                 "-",
                 "Multiplayer macros",
@@ -754,7 +757,14 @@ void M_DisplayMenus(void) {
                             G_UpdatePlayerFromMenu();
                         }
                         break;
+#ifndef RANCID_NETWORKING
                     case 7:
+                        if (x == io)
+                            packetrate = min(max(((packetrate/50)*50)+50,50),1000);
+                        modval(50,1000,(int32_t *)&packetrate,10,probey==7?2:0);
+                        break;
+#endif
+                    case 8:
                         if (x == io) {
                             ChangeToMenu(20004);
                         }
@@ -779,7 +789,7 @@ void M_DisplayMenus(void) {
                     if (x == 1) {
                         if (buf[0] && Bstrcmp(szPlayerName,buf)) {
                             Bstrcpy(szPlayerName,buf);
-                            Net_SendClientInfo();
+                            Net_SendPlayerName();
                         }
                         // send name update
                     }
@@ -838,6 +848,16 @@ void M_DisplayMenus(void) {
                         mgametext(d+70,yy,ud.weaponswitch&2?"On":"Off",MENUHIGHLIGHT(io),2+8+16);
                         break;
 
+                    case 7:
+#ifdef RANCID_NETWORKING
+                        // enet network backend doesn't have a packet rate mechanism
+                        mgametext(d+70,yy,"n/a", MENUHIGHLIGHT(io),2+8+16);
+#else
+                        Bsprintf(tempbuf,"%d",packetrate);
+                        mgametext(d+70,yy,tempbuf,MENUHIGHLIGHT(io),2+8+16);
+#endif
+                        break;
+
                     default:
                         break;
                     }
@@ -858,7 +878,7 @@ void M_DisplayMenus(void) {
             x = probesm(24,45,8,10);
             if (x == -1) {
                 ChangeToMenu(20002);
-                probey = 7;
+                probey = 8;
             } else if (x >= 0 && x <= 9) {
                 strcpy(buf, ud.ridecule[x]);
                 inputloc = strlen(buf);
@@ -1146,7 +1166,7 @@ void M_DisplayMenus(void) {
             KB_ClearKeyDown(sc_Escape);
 
             g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -1157,7 +1177,7 @@ void M_DisplayMenus(void) {
             KB_ClearKeysDown();
             FX_StopAllSounds();
 
-            if ((g_netServer || ud.multimode > 1)) {
+            if (ud.multimode > 1) {
                 G_LoadPlayer(-1-g_lastSaveSlot);
                 g_player[myconnectindex].ps->gm = MODE_GAME;
             } else {
@@ -1293,12 +1313,12 @@ void M_DisplayMenus(void) {
 
             KB_FlushKeyboardQueue();
             KB_ClearKeysDown();
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
 
-            if ((g_netServer || ud.multimode > 1)) {
+            if (ud.multimode > 1) {
                 if (g_player[myconnectindex].ps->gm&MODE_GAME) {
                     G_LoadPlayer(-1-g_lastSaveSlot);
                     g_player[myconnectindex].ps->gm = MODE_GAME;
@@ -1306,12 +1326,10 @@ void M_DisplayMenus(void) {
                     tempbuf[0] = PACKET_LOAD_GAME;
                     tempbuf[1] = g_lastSaveSlot;
                     tempbuf[2] = myconnectindex;
-
-                    if (g_netClient)
-                        enet_peer_send(g_netClientPeer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 3, ENET_PACKET_FLAG_RELIABLE));
-                    else if (g_netServer)
-                        enet_host_broadcast(g_netServer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 3, ENET_PACKET_FLAG_RELIABLE));
-
+                    TRAVERSE_CONNECT(x) {
+                        if (x != myconnectindex) mmulti_sendpacket(x,tempbuf,3);
+                        if ((!g_networkBroadcastMode) && (myconnectindex != connecthead)) break; //slaves in M/S mode only send to master
+                    }
                     Net_GetPackets();
 
                     G_LoadPlayer(g_lastSaveSlot);
@@ -1335,7 +1353,7 @@ void M_DisplayMenus(void) {
             S_PlaySound(EXITMENUSOUND);
             if (g_player[myconnectindex].ps->gm&MODE_GAME) {
                 g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-                if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+                if (ud.multimode < 2 && ud.recstat != 2) {
                     ready2send = 1;
                     totalclock = ototalclock;
                 }
@@ -1356,7 +1374,7 @@ void M_DisplayMenus(void) {
         if (KB_KeyPressed(sc_N) || KB_KeyPressed(sc_Escape) || RMB) {
             KB_ClearKeyDown(sc_N);
             KB_ClearKeyDown(sc_Escape);
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -1639,7 +1657,7 @@ cheat_for_port_credits:
             minitext(161-(Bstrlen(p)<<1), 120+10-l, p, 4, 10+16+128);
             minitext(160-(Bstrlen(p)<<1), 119+10-l, p, 8, 10+16+128);
 
-            mgametext(160,122-l,"LICENSE AND OTHER CONTRIBUTORS",0,2+8+16);
+            mgametext(160,138-l,"LICENSE AND OTHER CONTRIBUTORS",0,2+8+16);
             {
                 const char *scroller[] = {
                     "This program is distributed under the terms of the",
@@ -1664,15 +1682,11 @@ cheat_for_port_credits:
                     "Ozkan Sezer",       // SDL/GTK version checking improvements
                     "Peter Green",       // dynamic remapping, custom gametypes
                     "Peter Veenstra",    // port to 64-bit
-                    "Randy Heit",        // random snippets of ZDoom here and there
-                    "Robin Green",       // CON array support
                     "Philipp Kutin",     // Mapster32 improvements
                     "Ryan Gordon",       // icculus.org Duke3D port sound code
                     "Stephen Anthony",   // early 64-bit porting work
                     " ",
-                    "EDuke originally by Matt Saettler.",
-                    " ",
-                    "BUILD engine technology available under BUILDLIC.",
+                    "EDuke originally by Matt Saettler",
                     " ",
                     "--x--",
                     " ",
@@ -1703,7 +1717,10 @@ cheat_for_port_credits:
             rotatesprite((c+100)<<16,36<<16,65536L/2,0,PLUTOPAKSPRITE+2,(sintable[(totalclock<<4)&2047]>>11),0,2+8,0,0,xdim-1,ydim-1);
         x = M_Probe(c,67,16,6);
         if (x >= 0) {
-            if ((g_netServer || ud.multimode > 1) && x == 0 && ud.recstat != 2) {
+            if (ud.multimode > 1 && x == 0 && ud.recstat != 2) {
+                if (g_movesPerPacket == 4 && myconnectindex != connecthead)
+                    break;
+
                 last_zero = 0;
                 ChangeToMenu(600);
             } else {
@@ -1717,6 +1734,8 @@ cheat_for_port_credits:
                     ChangeToMenu(202);
                     break;   // JBF 20031205: was 200
                 case 2:
+                    if (g_movesPerPacket == 4 && connecthead != myconnectindex)
+                        break;
                     ChangeToMenu(300);
                     break;
                 case 3:
@@ -1737,19 +1756,27 @@ cheat_for_port_credits:
 
         if (x == -1 && (g_player[myconnectindex].ps->gm&MODE_GAME || ud.recstat == 2)) {
             g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
         }
 
-        menutext(c,67,MENUHIGHLIGHT(0),PHX(-2),"NEW GAME");
+        if (g_movesPerPacket == 4) {
+            if (myconnectindex == connecthead)
+                menutext(c,67,MENUHIGHLIGHT(0),PHX(-2),"NEW GAME");
+            else
+                menutext(c,67,MENUHIGHLIGHT(0),1,"NEW GAME");
+        } else
+            menutext(c,67,MENUHIGHLIGHT(0),PHX(-2),"NEW GAME");
 
         //    menutext(c,67+16,0,1,"NETWORK GAME");
 
         menutext(c,67+16/*+16*/,MENUHIGHLIGHT(1),PHX(-3),"OPTIONS");
 
-        menutext(c,67+16+16/*+16*/,MENUHIGHLIGHT(2),PHX(-4),"LOAD GAME");
+        if (g_movesPerPacket == 4 && connecthead != myconnectindex)
+            menutext(c,67+16+16/*+16*/,MENUHIGHLIGHT(2),1,"LOAD GAME");
+        else menutext(c,67+16+16/*+16*/,MENUHIGHLIGHT(2),PHX(-4),"LOAD GAME");
 
         if (!VOLUMEALL) {
 
@@ -1773,7 +1800,9 @@ cheat_for_port_credits:
         x = M_Probe(c,67,16,7);
         switch (x) {
         case 0:
-            if ((!g_netServer && ud.multimode < 2) || ud.recstat == 2)
+            if (g_movesPerPacket == 4 && myconnectindex != connecthead)
+                break;
+            if (ud.multimode < 2 || ud.recstat == 2)
                 ChangeToMenu(1500);
             else {
                 ChangeToMenu(600);
@@ -1781,6 +1810,8 @@ cheat_for_port_credits:
             }
             break;
         case 1:
+            if (g_movesPerPacket == 4 && connecthead != myconnectindex)
+                break;
             if (ud.recstat != 2) {
                 last_fifty = 1;
                 ChangeToMenu(350);
@@ -1788,6 +1819,8 @@ cheat_for_port_credits:
             }
             break;
         case 2:
+            if (g_movesPerPacket == 4 && connecthead != myconnectindex)
+                break;
             last_fifty = 2;
             ChangeToMenu(300);
             break;
@@ -1801,7 +1834,7 @@ cheat_for_port_credits:
             ChangeToMenu(400);
             break;
         case 5:
-            if (numplayers < 2 && !g_netServer) {
+            if (numplayers < 2) {
                 last_fifty = 5;
                 ChangeToMenu(501);
             }
@@ -1812,7 +1845,7 @@ cheat_for_port_credits:
             break;
         case -1:
             g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -1822,9 +1855,15 @@ cheat_for_port_credits:
         if (KB_KeyPressed(sc_Q))
             ChangeToMenu(500);
 
-        menutext(c,67                  ,MENUHIGHLIGHT(0),PHX(-2),"NEW GAME");
-        menutext(c,67+16               ,MENUHIGHLIGHT(1),PHX(-3),"SAVE GAME");
-        menutext(c,67+16+16            ,MENUHIGHLIGHT(2),PHX(-4),"LOAD GAME");
+        if (g_movesPerPacket == 4 && connecthead != myconnectindex) {
+            menutext(c,67                  ,MENUHIGHLIGHT(0),1,"NEW GAME");
+            menutext(c,67+16               ,MENUHIGHLIGHT(1),1,"SAVE GAME");
+            menutext(c,67+16+16            ,MENUHIGHLIGHT(2),1,"LOAD GAME");
+        } else {
+            menutext(c,67                  ,MENUHIGHLIGHT(0),PHX(-2),"NEW GAME");
+            menutext(c,67+16               ,MENUHIGHLIGHT(1),PHX(-3),"SAVE GAME");
+            menutext(c,67+16+16            ,MENUHIGHLIGHT(2),PHX(-4),"LOAD GAME");
+        }
 
         menutext(c,67+16+16+16         ,MENUHIGHLIGHT(3),PHX(-5),"OPTIONS");
         if (!VOLUMEALL) {
@@ -1832,7 +1871,7 @@ cheat_for_port_credits:
         } else {
             menutext(c,67+16+16+16+16      ,MENUHIGHLIGHT(4),PHX(-6)," HELP");
         }
-        if (g_netServer || numplayers > 1)
+        if (numplayers > 1)
             menutext(c,67+16+16+16+16+16   ,MENUHIGHLIGHT(5),1,"QUIT TO TITLE");
         else menutext(c,67+16+16+16+16+16   ,MENUHIGHLIGHT(5),PHX(-7),"QUIT TO TITLE");
         menutext(c,67+16+16+16+16+16+16,MENUHIGHLIGHT(6),PHX(-8),"QUIT GAME");
@@ -2035,7 +2074,7 @@ cheat_for_port_credits:
         if (x == -1) {
             clearfilenames();
             boardfilename[0] = 0;
-            if ((g_netServer || ud.multimode > 1)) {
+            if (ud.multimode > 1) {
                 Net_SendUserMapName();
                 ChangeToMenu(600);
                 probey = last_menu_pos;
@@ -2053,7 +2092,7 @@ cheat_for_port_credits:
                 strcat(boardfilename, findfileshigh->name);
                 ud.m_volume_number = 0;
                 ud.m_level_number = 7;
-                if ((g_netServer || ud.multimode > 1)) {
+                if (ud.multimode > 1) {
                     Net_SendUserMapName();
                     ChangeToMenu(600);
                     probey = last_menu_pos;
@@ -2126,18 +2165,23 @@ cheat_for_port_credits:
         {
             int32_t io, ii, yy, d=c+160+40, enabled;
             char *opts[] = {
-                "Aspect ratio",
+                "Widescreen",
                 "Anisotropic filtering",
                 "Use VSync",
                 "Ambient light level",
                 "-",
                 "Enable hires textures",
                 "Hires texture quality",
-                "Pre-load map textures",
-                "On disk texture cache",
+                "Precache hires textures",
+                "GL texture compression",
+                "Cache textures on disk",
+                "Compress disk cache",
                 "Use detail textures",
+                "Use glow textures",
                 "-",
                 "Use models",
+                "Blend model animations",
+                "Model occlusion checking",
                 NULL
             };
 
@@ -2169,40 +2213,9 @@ cheat_for_port_credits:
                 enabled = 1;
                 switch (io) {
                 case 0:
-                    if (getrendermode() == 3) {
-                        if (x==io) glwidescreen = 1-glwidescreen;
-                        modval(0,1,(int32_t *)&glwidescreen,1,probey==io);
-                        mgametextpal(d,yy, glwidescreen ? "Wide" : "Regular", MENUHIGHLIGHT(io), 0);
-                    }
-#ifdef POLYMER
-                    else {
-                        float ratios[] = { 0.0, 1.33, 1.66, 1.78, 1.85, 2.35 };
-
-                        int32_t j = (sizeof(ratios)/sizeof(ratios[0]));
-
-                        for (i = 0; i<j; i++)
-                            if (ratios[i] == pr_customaspect)
-                                break;
-
-                        modval(0,j-1,(int32_t *)&i,1,probey==io);
-                        if (x == io) {
-                            i++;
-                            if (i >= j)
-                                i = 0;
-                        }
-                        if (i == j)
-                            Bsprintf(tempbuf,"Custom");
-                        else {
-                            if (i == 0) Bsprintf(tempbuf,"Auto");
-                            else Bsprintf(tempbuf,"%.2f:1",ratios[i]);
-
-                            if (ratios[i] != pr_customaspect)
-                                pr_customaspect = ratios[i];
-                        }
-                        mgametextpal(d,yy,tempbuf, MENUHIGHLIGHT(io), 0);
-
-                    }
-#endif
+                    if (x==io) glwidescreen = 1-glwidescreen;
+                    modval(0,1,(int32_t *)&glwidescreen,1,probey==io);
+                    mgametextpal(d,yy, glwidescreen ? "Yes" : "No", MENUHIGHLIGHT(io), 0);
                     break;
                 case 1: {
                     int32_t dummy = glanisotropy;
@@ -2264,28 +2277,52 @@ cheat_for_port_credits:
                     if (enabled) modval(0,1,(int32_t *)&ud.config.useprecache,1,probey==io);
                     mgametextpal(d,yy, ud.config.useprecache ? "On" : "Off", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
                     break;
-                case 7: {
-                    char *s[] = { "Off", "On", "Compress" };
-                    enabled = (glusetexcompr && usehightile);
-                    if (enabled && x==io) {
-                        glusetexcache++;
-                        if (glusetexcache > 2)
-                            glusetexcache = 0;
-                    }
-                    if (enabled) modval(0,2,(int32_t *)&glusetexcache,1,probey==io);
-                    mgametextpal(d,yy, s[glusetexcache], enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
-                }
-                break;
+                case 7:
+                    enabled = usehightile;
+                    if (enabled && x==io) glusetexcompr = !glusetexcompr;
+                    if (enabled) modval(0,1,(int32_t *)&glusetexcompr,1,probey==io);
+                    mgametextpal(d,yy, glusetexcompr ? "On" : "Off", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
+                    break;
                 case 8:
+                    enabled = (glusetexcompr && usehightile);
+                    if (enabled && x==io) glusetexcache = !glusetexcache;
+                    if (enabled) modval(0,1,(int32_t *)&glusetexcache,1,probey==io);
+                    mgametextpal(d,yy, glusetexcache ? "On" : "Off", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
+                    break;
+                case 9:
+                    enabled = (glusetexcompr && usehightile && glusetexcache);
+                    if (enabled && x==io) glusetexcachecompression = !glusetexcachecompression;
+                    if (enabled) modval(0,1,(int32_t *)&glusetexcachecompression,1,probey==io);
+                    mgametextpal(d,yy, glusetexcachecompression ? "On" : "Off", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
+                    break;
+                case 10:
                     enabled = usehightile;
                     if (enabled && x==io) r_detailmapping = !r_detailmapping;
                     if (enabled) modval(0,1,(int32_t *)&r_detailmapping,1,probey==io);
                     mgametextpal(d,yy, r_detailmapping ? "Yes" : "No", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
                     break;
-                case 9:
+                case 11:
+                    enabled = usehightile;
+                    if (enabled && x==io) r_glowmapping = !r_glowmapping;
+                    if (enabled) modval(0,1,(int32_t *)&r_glowmapping,1,probey==io);
+                    mgametextpal(d,yy, r_glowmapping ? "Yes" : "No", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
+                    break;
+                case 12:
                     if (x==io) usemodels = 1-usemodels;
                     modval(0,1,(int32_t *)&usemodels,1,probey==io);
                     mgametextpal(d,yy, usemodels ? "Yes" : "No", MENUHIGHLIGHT(io), 0);
+                    break;
+                case 13:
+                    enabled = usemodels;
+                    if (enabled && x==io) r_animsmoothing = !r_animsmoothing;
+                    if (enabled) modval(0,1,(int32_t *)&r_animsmoothing,1,probey==io);
+                    mgametextpal(d,yy, r_animsmoothing ? "Yes" : "No", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
+                    break;
+                case 14:
+                    enabled = usemodels;
+                    if (enabled && x==io) r_modelocclusionchecking = !r_modelocclusionchecking;
+                    if (enabled) modval(0,1,(int32_t *)&r_modelocclusionchecking,1,probey==io);
+                    mgametextpal(d,yy, r_modelocclusionchecking ? "Yes" : "No", enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE, 0);
                     break;
                 default:
                     break;
@@ -2312,7 +2349,7 @@ cheat_for_port_credits:
         if (x == -1) {
             if (g_player[myconnectindex].ps->gm&MODE_GAME && g_currentMenu == 232) {
                 g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-                if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+                if (ud.multimode < 2  && ud.recstat != 2) {
                     ready2send = 1;
                     totalclock = ototalclock;
                 }
@@ -2517,7 +2554,7 @@ cheat_for_port_credits:
                     }
                     if ((g_player[myconnectindex].ps->gm&MODE_GAME) && ud.m_recstat != 1)
                         enabled = 0;
-                    mgametextpal(d,yy,ud.m_recstat?((enabled && g_player[myconnectindex].ps->gm&MODE_GAME)?"Running":"On"):"Off",enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE,enabled?0:1);
+                    mgametextpal(d,yy,ud.m_recstat?((ud.m_recstat && enabled && g_player[myconnectindex].ps->gm&MODE_GAME)?"Running":"On"):"Off",enabled?MENUHIGHLIGHT(io):DISABLEDMENUSHADE,enabled?0:1);
                     break;
                 case 12:
                     if (x==io) ChangeToMenu(201);
@@ -2545,9 +2582,9 @@ cheat_for_port_credits:
                 "Parental lock",
                 "-",
                 "Show inv & pickup messages",
-                "Display current weapon",
-                "Upgraded status bar",
-                "Camera view in demos",
+                "HUD weapon display",
+                "Use alternate HUD",
+                "Use camera view in demos",
                 "-",
                 "DM: Ignore map votes",
                 "DM: Use private messages",
@@ -2611,7 +2648,7 @@ cheat_for_port_credits:
                     }
                     modval(0,2,(int32_t *)&ud.drawweapon,1,probey==io);
                     {
-                        char *s[] = { "Off", "On", "Icon only" };
+                        char *s[] = { "Off", "Normal", "Icon only" };
                         mgametextpal(d,yy, s[ud.drawweapon], MENUHIGHLIGHT(io), 0);
                         break;
                     }
@@ -3049,7 +3086,7 @@ cheat_for_port_credits:
             menutext(c+168,50+62+16+16,MENUHIGHLIGHT(5),0,ud.detail?"OFF":"ON");
             modval(0,1,(int32_t *)&ud.detail,1,probey==5);
             menutext(c,50+62+16+16+16,MENUHIGHLIGHT(6),PHX(-6),"AMBIENT LIGHT");
-            _bar(0,c+185,50+62+16+16+16,&i,128,x==6,MENUHIGHLIGHT(6),g_netServer || numplayers>1,128,4096);
+            _bar(0,c+185,50+62+16+16+16,&i,128,x==6,MENUHIGHLIGHT(6),numplayers>1,128,4096);
             Bsprintf(tempbuf,"%.2f",r_ambientlight);
             mgametextpal(c+185+9,50+62+16+16+16+4, tempbuf, MENUHIGHLIGHT(6), 0);
 
@@ -3296,7 +3333,7 @@ cheat_for_port_credits:
         mgametextpal(40,118+9+9+9+9,"Advanced mouse setup",MENUHIGHLIGHT((MAXMOUSEBUTTONS-2)*2+2+2+2),10);
 
         {
-            int32_t sense = (int32_t)(CONTROL_MouseSensitivity * 2.0f);
+            int32_t sense = CONTROL_MouseSensitivity * 2;
             barsm(248,126,&sense,2,x==(MAXMOUSEBUTTONS-2)*2+2,MENUHIGHLIGHT((MAXMOUSEBUTTONS-2)*2+2),PHX(-7));
             CONTROL_MouseSensitivity = sense / 2.0f;
         }
@@ -3415,9 +3452,8 @@ cheat_for_port_credits:
                 break;
             }
         } else if (function == 2) {
-            static char *directions[] = {
-                "UP", "RIGHT", "DOWN", "LEFT"
-            };
+            static char *directions[] = { "UP", "RIGHT", "DOWN", "LEFT"
+                                        };
             if (whichkey < 2*joynumbuttons)
                 Bsprintf(tempbuf,"TO %s%s", (whichkey&1)?"DOUBLE-CLICKED ":"", getjoyname(1,whichkey>>1));
             else
@@ -3655,9 +3691,8 @@ cheat_for_port_credits:
                 Bsprintf(tempbuf, "%s%s", ((l+m)&1)?"Double ":"", getjoyname(1,(l+m)>>1));
                 x = ud.config.JoystickFunctions[(l+m)>>1][(l+m)&1];
             } else {
-                static char *directions[] = {
-                    "Up", "Right", "Down", "Left"
-                };
+                static char *directions[] = { "Up", "Right", "Down", "Left"
+                                            };
                 Bsprintf(tempbuf, "Hat %s", directions[(l+m)-2*joynumbuttons]);
                 x = ud.config.JoystickFunctions[joynumbuttons + ((l+m)-2*joynumbuttons)][0];
             }
@@ -3933,7 +3968,7 @@ cheat_for_port_credits:
                 "Music",
                 "Music volume",
                 "-",
-                "Playback sampling rate",
+                "Sample rate",
                 "Sample size",
                 "Number of voices",
                 "-",
@@ -3966,7 +4001,7 @@ cheat_for_port_credits:
 
                 if (g_player[myconnectindex].ps->gm&MODE_GAME && g_currentMenu == 701) {
                     g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-                    if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+                    if (ud.multimode < 2  && ud.recstat != 2) {
                         ready2send = 1;
                         totalclock = ototalclock;
                     }
@@ -4011,20 +4046,20 @@ cheat_for_port_credits:
                 }
                 break;
                 case 2:
-                    if (ud.config.MusicDevice >= 0) {
+                    if (ud.config.MusicDevice >= 0 && (numplayers < 2 || ud.config.MusicToggle)) {
                         i = ud.config.MusicToggle;
                         modval(0,1,(int32_t *)&ud.config.MusicToggle,1,probey==io);
                         if (x==io)
                             ud.config.MusicToggle = 1-ud.config.MusicToggle;
                         if (i != ud.config.MusicToggle) {
-                            if (ud.config.MusicToggle == 0) S_PauseMusic(1);
+                            if (ud.config.MusicToggle == 0) MUSIC_Pause();
                             else {
                                 if (ud.recstat != 2 && g_player[myconnectindex].ps->gm&MODE_GAME) {
                                     if (MapInfo[(uint8_t)g_musicIndex].musicfn != NULL)
                                         S_PlayMusic(&MapInfo[(uint8_t)g_musicIndex].musicfn[0],g_musicIndex);
                                 } else S_PlayMusic(&EnvMusicFilename[0][0],MAXVOLUMES*MAXLEVELS);
 
-                                S_PauseMusic(0);
+                                MUSIC_Continue();
                             }
                         }
                     }
@@ -4037,11 +4072,11 @@ cheat_for_port_credits:
                     _bar(1,d+8,yy+7, &ud.config.MusicVolume,4,probey==io,enabled?MENUHIGHLIGHT(io):UNSELMENUSHADE,!enabled,0,64);
                     ud.config.MusicVolume <<= 2;
                     if (l != ud.config.MusicVolume)
-                        S_MusicVolume((int16_t) ud.config.MusicVolume);
+                        MUSIC_SetVolume((int16_t) ud.config.MusicVolume);
                 }
                 break;
                 case 4: {
-                    int32_t rates[] = { 22050, 24000, 32000, 44100, 48000 };
+                    int32_t rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, 48000 };
                     int32_t j = (sizeof(rates)/sizeof(rates[0]));
 
                     for (i = 0; i<j; i++)
@@ -4084,10 +4119,10 @@ cheat_for_port_credits:
                     i = ud.config.NumVoices;
                     if (x==io) {
                         ud.config.NumVoices++;
-                        if (ud.config.NumVoices > 96)
+                        if (ud.config.NumVoices > 32)
                             ud.config.NumVoices = 4;
                     }
-                    modval(4,96,(int32_t *)&ud.config.NumVoices,1,probey==io);
+                    modval(4,32,(int32_t *)&ud.config.NumVoices,1,probey==io);
                     if (ud.config.NumVoices != i)
                         changesmade |= 8;
                     Bsprintf(tempbuf,"%d",ud.config.NumVoices);
@@ -4100,7 +4135,9 @@ cheat_for_port_credits:
                         S_SoundShutdown();
                         S_MusicShutdown();
 
+                        initprintf("Initializing music...\n");
                         S_MusicStartup();
+                        initprintf("Initializing sound...\n");
                         S_SoundStartup();
 
                         FX_StopAllSounds();
@@ -4198,7 +4235,7 @@ cheat_for_port_credits:
             if (x == -1) {
                 //        ReadSaveGameHeaders();
                 g_player[myconnectindex].ps->gm = MODE_GAME;
-                if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+                if (ud.multimode < 2  && ud.recstat != 2) {
                     ready2send = 1;
                     totalclock = ototalclock;
                 }
@@ -4210,13 +4247,13 @@ cheat_for_port_credits:
                     KB_FlushKeyboardQueue();
                     ChangeToMenu(351);
                 } else {
-                    if ((g_netServer || ud.multimode > 1))
+                    if (ud.multimode > 1)
                         G_SavePlayer(-1-(g_currentMenu-360));
                     else G_SavePlayer(g_currentMenu-360);
                     g_lastSaveSlot = g_currentMenu-360;
                     g_player[myconnectindex].ps->gm = MODE_GAME;
 
-                    if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+                    if (ud.multimode < 2  && ud.recstat != 2) {
                         ready2send = 1;
                         totalclock = ototalclock;
                     }
@@ -4276,7 +4313,7 @@ cheat_for_port_credits:
             } else
                 g_player[myconnectindex].ps->gm = MODE_GAME;
 
-            if ((!g_netServer && ud.multimode < 2) && ud.recstat != 2) {
+            if (ud.multimode < 2 && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -4443,13 +4480,13 @@ VOLUME_ALL_40x:
         if (KB_KeyPressed(sc_Space) || KB_KeyPressed(sc_Enter) || KB_KeyPressed(sc_kpad_Enter) || KB_KeyPressed(sc_Y) || LMB) {
             KB_FlushKeyboardQueue();
 
-            G_GameQuit();
+            Net_SendQuit();
         }
 
         x = M_Probe(186,124,0,1);
         if (x == -1 || KB_KeyPressed(sc_N) || RMB) {
             KB_ClearKeyDown(sc_N);
-            g_quitDeadline = 0;
+            quittimer = 0;
             if (g_player[myconnectindex].ps->gm&MODE_DEMO && ud.recstat == 2)
                 g_player[myconnectindex].ps->gm = MODE_DEMO;
             else {
@@ -4459,7 +4496,7 @@ VOLUME_ALL_40x:
                 } else if (!(g_player[myconnectindex].ps->gm & MODE_GAME || ud.recstat == 2))
                     ChangeToMenu(0);
                 else g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-                if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+                if (ud.multimode < 2  && ud.recstat != 2) {
                     ready2send = 1;
                     totalclock = ototalclock;
                 }
@@ -4484,7 +4521,7 @@ VOLUME_ALL_40x:
 
         if (x == -1 || KB_KeyPressed(sc_N) || RMB) {
             g_player[myconnectindex].ps->gm &= ~MODE_MENU;
-            if ((!g_netServer && ud.multimode < 2)  && ud.recstat != 2) {
+            if (ud.multimode < 2  && ud.recstat != 2) {
                 ready2send = 1;
                 totalclock = ototalclock;
             }
@@ -4534,11 +4571,10 @@ VOLUME_ALL_40x:
                 tempbuf[0] = PACKET_MAP_VOTE_CANCEL;
                 tempbuf[1] = myconnectindex;
 
-                if (g_netClient)
-                    enet_peer_send(g_netClientPeer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 2, ENET_PACKET_FLAG_RELIABLE));
-                else if (g_netServer)
-                    enet_host_broadcast(g_netServer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 2, ENET_PACKET_FLAG_RELIABLE));
-
+                TRAVERSE_CONNECT(c) {
+                    if (c != myconnectindex) mmulti_sendpacket(c,tempbuf,2);
+                    if ((!g_networkBroadcastMode) && (myconnectindex != connecthead)) break; //slaves in M/S mode only send to master
+                }
                 voting = -1;
             }
             ChangeToMenu(0);
@@ -4548,8 +4584,8 @@ VOLUME_ALL_40x:
             plrvotes += g_player[i].vote;
             j += g_player[i].gotvote;
         }
-        if (j == numplayers || !g_player[myconnectindex].ps->i || (plrvotes > (numplayers>>1)) || (g_netServer)) {
-            if (plrvotes > (numplayers>>1) || !g_player[myconnectindex].ps->i || (g_netServer)) {
+        if (j == numplayers || !g_player[myconnectindex].ps->i || (plrvotes > (numplayers>>1)) || (!g_networkBroadcastMode && myconnectindex == connecthead)) {
+            if (plrvotes > (numplayers>>1) || !g_player[myconnectindex].ps->i || (!g_networkBroadcastMode && myconnectindex == connecthead)) {
                 if (ud.m_player_skill == 3) ud.m_respawn_monsters = 1;
                 else ud.m_respawn_monsters = 0;
 
@@ -4566,7 +4602,7 @@ VOLUME_ALL_40x:
 
                 Net_NewGame(ud.m_volume_number,ud.m_level_number);
 
-                if (voting == myconnectindex && !(g_netServer))
+                if (voting == myconnectindex && !(!g_networkBroadcastMode && myconnectindex == connecthead))
                     G_AddUserQuote("VOTE SUCCEEDED");
 
                 G_NewGame(ud.m_volume_number,ud.m_level_number,ud.m_player_skill+1);
@@ -4584,12 +4620,11 @@ VOLUME_ALL_40x:
                 tempbuf[0] = PACKET_MAP_VOTE_CANCEL;
                 tempbuf[1] = myconnectindex;
                 tempbuf[2] = 1;
-                tempbuf[3] = myconnectindex;
 
-                if (g_netClient)
-                    enet_peer_send(g_netClientPeer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 4, ENET_PACKET_FLAG_RELIABLE));
-                else if (g_netServer)
-                    enet_host_broadcast(g_netServer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 4, ENET_PACKET_FLAG_RELIABLE));
+                TRAVERSE_CONNECT(c) {
+                    if (c != myconnectindex) mmulti_sendpacket(c,tempbuf,3);
+                    if ((!g_networkBroadcastMode) && (myconnectindex != connecthead)) break; //slaves in M/S mode only send to master
+                }
 
                 Bsprintf(ScriptQuotes[116],"VOTE FAILED");
                 P_DoQuote(116,g_player[myconnectindex].ps);
@@ -4702,7 +4737,7 @@ VOLUME_ALL_40x:
             break;
         case 7:
             // master does whatever it wants
-            if (g_netServer) {
+            if (!g_networkBroadcastMode && myconnectindex == connecthead) {
                 ChangeToMenu(603);
                 break;
             }
@@ -4719,12 +4754,11 @@ VOLUME_ALL_40x:
                     tempbuf[1] = myconnectindex;
                     tempbuf[2] = ud.m_volume_number;
                     tempbuf[3] = ud.m_level_number;
-                    tempbuf[4] = myconnectindex;
 
-                    if (g_netClient)
-                        enet_peer_send(g_netClientPeer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 5, ENET_PACKET_FLAG_RELIABLE));
-                    else if (g_netServer)
-                        enet_host_broadcast(g_netServer, CHAN_GAMESTATE, enet_packet_create(tempbuf, 5, ENET_PACKET_FLAG_RELIABLE));
+                    TRAVERSE_CONNECT(c) {
+                        if (c != myconnectindex) mmulti_sendpacket(c,tempbuf,4);
+                        if ((!g_networkBroadcastMode) && (myconnectindex != connecthead)) break; //slaves in M/S mode only send to master
+                    }
                 }
                 if ((GametypeFlags[ud.m_coop] & GAMETYPE_PLAYERSFRIENDLY) && !(GametypeFlags[ud.m_coop] & GAMETYPE_TDM))
                     ud.m_noexits = 0;

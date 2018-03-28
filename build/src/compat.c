@@ -15,7 +15,6 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_IE 0x0400
-#define _WIN32_WINNT 0x0500
 #include <windows.h>
 #include <shlobj.h>
 #include <direct.h>
@@ -27,7 +26,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 // #include <sys/stat.h>
-#include <limits.h>
 
 #ifdef __APPLE__
 #if MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_3
@@ -36,14 +34,16 @@
 #endif
 #endif
 
-#if defined(_MSC_VER)
+#if defined(__WATCOMC__)
+# include <direct.h>
+#elif defined(_MSC_VER)
 # include <io.h>
 #else
 # include <dirent.h>
 #endif
 
 #include "compat.h"
-#include "baselayer.h"
+
 
 #ifndef __compat_h_macrodef__
 
@@ -54,15 +54,15 @@ int32_t Brand(void)
 
 void *Bmalloc(bsize_t size)
 {
-    return nedmalloc(size);
+    return malloc(size);
 }
 
 void Bfree(void *ptr)
 {
-    nedfree(ptr);
+    free(ptr);
 }
 
-int32_t Bopen(const char *pathname, int32_t flags, uint32_t mode)
+int32_t Bopen(const char *pathname, int32_t flags, unsigned mode)
 {
     int32_t n=0,o=0;
 
@@ -157,7 +157,7 @@ bsize_t Bfwrite(const void *ptr, bsize_t size, bsize_t nmemb, BFILE *stream)
 
 char *Bstrdup(const char *s)
 {
-    return nedstrdup(s);
+    return strdup(s);
 }
 
 char *Bstrcpy(char *dest, const char *src)
@@ -357,7 +357,7 @@ char *Bgethomedir(void)
         {
             if (loaded)
                 FreeLibrary(hShell32);
-            return Bstrdup(appdata);
+            return strdup(appdata);
         }
 
     if (loaded)
@@ -376,13 +376,13 @@ char *Bgethomedir(void)
     CFRelease(base);
     if (!str) return NULL;
     s = (char*)CFStringGetCStringPtr(str,CFStringGetSystemEncoding());
-    if (s) s = Bstrdup(s);
+    if (s) s = strdup(s);
     CFRelease(str);
     return s;
 #else
     char *e = getenv("HOME");
     if (!e) return NULL;
-    return Bstrdup(e);
+    return strdup(e);
 #endif
 }
 
@@ -406,7 +406,7 @@ char *Bgetsupportdir(int32_t global)
     CFRelease(base);
     if (!str) return NULL;
     s = (char*)CFStringGetCStringPtr(str,CFStringGetSystemEncoding());
-    if (s) s = Bstrdup(s);
+    if (s) s = strdup(s);
     CFRelease(str);
     return s;
 #endif
@@ -418,7 +418,7 @@ int32_t Bcorrectfilename(char *filename, int32_t removefn)
     char *tokarr[64], *first, *next = NULL, *token;
     int32_t i, ntok = 0, leadslash = 0, trailslash = 0;
 
-    fn = Bstrdup(filename);
+    fn = strdup(filename);
     if (!fn) return -1;
 
     for (first=fn; *first; first++)
@@ -531,7 +531,7 @@ char *Bgetsystemdrives(void)
         number++;
     }
 
-    str = p = (char *)Bmalloc(1 + (3*number));
+    str = p = (char *)malloc(1 + (3*number));
     if (!str) return NULL;
 
     number = 0;
@@ -578,15 +578,15 @@ BDIR* Bopendir(const char *name)
     BDIR_real *dirr;
 #ifdef _MSC_VER
     char *t,*tt;
-    t = (char*)Bmalloc(strlen(name)+1+4);
+    t = (char*)malloc(strlen(name)+1+4);
     if (!t) return NULL;
 #endif
 
-    dirr = (BDIR_real*)Bmalloc(sizeof(BDIR_real) + strlen(name));
+    dirr = (BDIR_real*)malloc(sizeof(BDIR_real) + strlen(name));
     if (!dirr)
     {
 #ifdef _MSC_VER
-        Bfree(t);
+        free(t);
 #endif
         return NULL;
     }
@@ -602,17 +602,17 @@ BDIR* Bopendir(const char *name)
     *(++tt) = 0;
 
     dirr->dir = _findfirst(t,&dirr->fid);
-    Bfree(t);
+    free(t);
     if (dirr->dir == -1)
     {
-        Bfree(dirr);
+        free(dirr);
         return NULL;
     }
 #else
     dirr->dir = opendir(name);
     if (dirr->dir == NULL)
     {
-        Bfree(dirr);
+        free(dirr);
         return NULL;
     }
 #endif
@@ -664,7 +664,7 @@ struct Bdirent*	Breaddir(BDIR *dir)
     dirr->info.size = 0;
     dirr->info.mtime = 0;
 
-    fn = (char *)Bmalloc(strlen(dirr->name) + 1 + dirr->info.namlen + 1);
+    fn = (char *)malloc(strlen(dirr->name) + 1 + dirr->info.namlen + 1);
     if (fn)
     {
         Bsprintf(fn,"%s/%s",dirr->name,dirr->info.name);
@@ -674,7 +674,7 @@ struct Bdirent*	Breaddir(BDIR *dir)
             dirr->info.size = st.st_size;
             dirr->info.mtime = st.st_mtime;
         }
-        Bfree(fn);
+        free(fn);
     }
 
     return &dirr->info;
@@ -689,7 +689,7 @@ int32_t Bclosedir(BDIR *dir)
 #else
     closedir(dirr->dir);
 #endif
-    Bfree(dirr);
+    free(dirr);
 
     return 0;
 }
@@ -776,41 +776,17 @@ char *Bstrupr(char *s)
 
 
 //
-// Bgetsysmemsize() -- gets the amount of system memory in the machine
+// getsysmemsize() -- gets the amount of system memory in the machine
 //
 uint32_t Bgetsysmemsize(void)
 {
 #ifdef _WIN32
-    uint32_t siz = UINT_MAX;
-    HMODULE lib = LoadLibrary("KERNEL32.DLL");
-    
-    if (lib)
-    {
-         BOOL (WINAPI *aGlobalMemoryStatusEx)(LPMEMORYSTATUSEX) =
-            (void *)GetProcAddress(lib, "GlobalMemoryStatusEx");
-
-        if (aGlobalMemoryStatusEx)
-        {
-            //WinNT
-            MEMORYSTATUSEX memst;
-            memst.dwLength = sizeof(MEMORYSTATUSEX);
-            if (aGlobalMemoryStatusEx(&memst))
-                siz = (uint32_t)min(UINT_MAX, memst.ullTotalPhys);
-        }
-        else
-        {
-            // Yeah, there's enough Win9x hatred here that a perfectly good workaround 
-            // has been replaced by an error message.  Oh well, we don't support 9x anyway.
-            initprintf("Bgetsysmemsize(): error determining system memory size!\n");
-        }
-
-        FreeLibrary(lib);
-    }
-
-    return siz;
+    MEMORYSTATUS memst;
+    GlobalMemoryStatus(&memst);
+    return (uint32_t)memst.dwTotalPhys;
 #elif (defined(_SC_PAGE_SIZE) || defined(_SC_PAGESIZE)) && defined(_SC_PHYS_PAGES)
-    uint32_t siz = UINT_MAX;
-    int64_t scpagesiz, scphyspages;
+    uint32_t siz = 0x7fffffff;
+    int32_t scpagesiz, scphyspages;
 
 #ifdef _SC_PAGE_SIZE
     scpagesiz = sysconf(_SC_PAGE_SIZE);
@@ -819,14 +795,14 @@ uint32_t Bgetsysmemsize(void)
 #endif
     scphyspages = sysconf(_SC_PHYS_PAGES);
     if (scpagesiz >= 0 && scphyspages >= 0)
-        siz = (uint32_t)min(UINT_MAX, (int64_t)scpagesiz * (int64_t)scphyspages);
+        siz = (uint32_t)min(longlong(0x7fffffff), (int64)scpagesiz * (int64)scphyspages);
 
     //initprintf("Bgetsysmemsize(): %d pages of %d bytes, %d bytes of system memory\n",
     //		scphyspages, scpagesiz, siz);
 
     return siz;
 #else
-    return UINT_MAX;
+    return 0x7fffffff;
 #endif
 }
 

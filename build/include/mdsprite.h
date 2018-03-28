@@ -1,8 +1,6 @@
 #ifndef _mdsprite_h_
 # define _mdsprite_h_
 
-#include "hightile.h"
-
 #ifdef __POWERPC__
 #define SHIFTMOD32(a) ((a)&31)
 #else
@@ -242,5 +240,6 @@ EXTERN voxmodel_t *voxmodels[MAXVOXELS];
 void voxfree(voxmodel_t *m);
 voxmodel_t *voxload(const char *filnam);
 int32_t voxdraw(voxmodel_t *m, spritetype *tspr);
+
 
 #endif // !_mdsprite_h_

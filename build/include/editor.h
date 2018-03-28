@@ -36,7 +36,6 @@ extern "C" {
 
 extern int32_t qsetmode;
 extern int16_t searchsector, searchwall, searchstat;
-extern int16_t searchbottomwall;
 extern int32_t zmode, kensplayerheight;
 extern int16_t defaultspritecstat;
 
@@ -97,7 +96,6 @@ int32_t _getnumber16(char *namestart, int32_t num, int32_t maxnumber, char sign,
 void printmessage256(int32_t x, int32_t y, char *name);
 void _printmessage16(const char *fmt, ...);
 
-extern int32_t lastpm16time;
 #define printmessage16(fmt, ...) lastpm16time = totalclock, _printmessage16(fmt, ## __VA_ARGS__)
 
 extern char lastpm16buf[156];
@@ -106,11 +104,11 @@ void getpoint(int32_t searchxe, int32_t searchye, int32_t *x, int32_t *y);
 int32_t getpointhighlight(int32_t xplc, int32_t yplc, int32_t point);
 
 #ifdef _WIN32
-#define DEFAULT_GAME_EXEC "erampage.exe"
-#define DEFAULT_GAME_LOCAL_EXEC "erampage.exe"
+#define DEFAULT_GAME_EXEC "eduke32.exe"
+#define DEFAULT_GAME_LOCAL_EXEC "eduke32.exe"
 #else
-#define DEFAULT_GAME_EXEC "erampage"
-#define DEFAULT_GAME_LOCAL_EXEC "./erampage"
+#define DEFAULT_GAME_EXEC "eduke32"
+#define DEFAULT_GAME_LOCAL_EXEC "./eduke32"
 #endif
 
 void test_map(int32_t mode);

@@ -32,21 +32,20 @@ TARGETOPTS=/DNOASM
 
 !ifdef DEBUG
 # debugging options
-flags_cl=/Od /Zi
+flags_cl=/Ot /Zi
 flags_link=/DEBUG
-flags_lib=
 !else
 # release options
-flags_cl=/Ox /GL /arch:SSE
-flags_link=/RELEASE /LTCG
-flags_lib=/LTCG
+#flags_cl=/Ox
+flags_cl= /O2 /Ox
+flags_link=/RELEASE
 !endif
 
 CC=cl
 AS=ml
 RC=rc
-LINK=link /opt:ref /nologo
-CFLAGS=$(CFLAGS) /nologo /MT /J $(flags_cl) $(TARGETOPTS) /I$(INC) /I$(MSSDKROOT)\include" /I$(PLATFORMSDK)\include" /I$(DXROOT)\include" # /I$(ENETROOT)\include"
+LINK=link /opt:nowin98 /opt:ref /nologo
+CFLAGS=$(CFLAGS) /nologo /MD /J $(flags_cl) $(TARGETOPTS) /I$(INC) /I$(MSSDKROOT)\include" /I$(PLATFORMSDK)\include" /I$(DXROOT)\include" # /I$(ENETROOT)\include"
 ASFLAGS=/nologo /coff /c
 EXESUFFIX=.exe
 !ifdef DEBUG
@@ -72,15 +71,16 @@ ENGINEOBJS= \
 	$(OBJ)\smalltextfont.$o \
 	$(OBJ)\glbuild.$o \
 	$(OBJ)\kplib.$o \
-	$(OBJ)\quicklz.$o \
+	$(OBJ)\lzf_c.$o \
+	$(OBJ)\lzf_d.$o \
 	$(OBJ)\lzwnew.$o \
 	$(OBJ)\md4.$o \
+	$(OBJ)\mmulti_unstable.$o \
 	$(OBJ)\osd.$o \
 	$(OBJ)\pragmas.$o \
 	$(OBJ)\scriptfile.$o \
 	$(OBJ)\winlayer.$o \
-    $(OBJ)\polymer.$o \
-    $(OBJ)\nedmalloc.$o
+        $(OBJ)\polymer.$o
 
 EDITOROBJS=$(OBJ)\build.$o \
 	$(OBJ)\startwin.editor.$o \
@@ -119,31 +119,31 @@ utils: $(UTILS) ;
 
 enginelib: $(OBJ)\$(ENGINELIB) ;
 $(OBJ)\$(ENGINELIB): $(ENGINEOBJS)
-	lib $(flags_lib) /out:$@ /nologo $**
+	lib /out:$@ /nologo $**
 
 editorlib: $(OBJ)\$(EDITORLIB) ;
 $(OBJ)\$(EDITORLIB): $(EDITOROBJS)
-	lib $(flags_lib) /out:$@ /nologo $**
+	lib /out:$@ /nologo $**
 
 # the tools
-kextract$(EXESUFFIX): $(OBJ)\kextract.$o $(OBJ)\compat.$o $(OBJ)\nedmalloc.$o
-	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) 
+kextract$(EXESUFFIX): $(OBJ)\kextract.$o $(OBJ)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) msvcrt.lib
 	$(MT) -manifest $@.manifest -outputresource:$@
 	
-kgroup$(EXESUFFIX): $(OBJ)\kgroup.$o $(OBJ)\compat.$o $(OBJ)\nedmalloc.$o
-	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) 
+kgroup$(EXESUFFIX): $(OBJ)\kgroup.$o $(OBJ)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) msvcrt.lib
 	$(MT) -manifest $@.manifest -outputresource:$@
 
-transpal$(EXESUFFIX): $(OBJ)\transpal.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o $(OBJ)\nedmalloc.$o
-	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) 
+transpal$(EXESUFFIX): $(OBJ)\transpal.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) msvcrt.lib
 	$(MT) -manifest $@.manifest -outputresource:$@
 
-wad2map$(EXESUFFIX): $(OBJ)\wad2map.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o $(OBJ)\nedmalloc.$o
-	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) 
+wad2map$(EXESUFFIX): $(OBJ)\wad2map.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) msvcrt.lib
 	$(MT) -manifest $@.manifest -outputresource:$@
 
-wad2art$(EXESUFFIX): $(OBJ)\wad2art.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o $(OBJ)\nedmalloc.$o
-	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) 
+wad2art$(EXESUFFIX): $(OBJ)\wad2art.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o
+	$(LINK) /OUT:$@ /SUBSYSTEM:CONSOLE /LIBPATH:$(DXROOT)\lib\x86" /LIBPATH:$(PLATFORMSDK)\lib" /LIBPATH:$(MSSDKROOT)\lib" $(flags_link) /MAP $** $(LIBS) msvcrt.lib
 	$(MT) -manifest $@.manifest -outputresource:$@
 
 # DEPENDENCIES
@@ -151,7 +151,7 @@ wad2art$(EXESUFFIX): $(OBJ)\wad2art.$o $(OBJ)\pragmas.$o $(OBJ)\compat.$o $(OBJ)
 
 # PHONIES	
 clean:
-	-del /Q $(ENGINEOBJS) $(EDITOROBJS) $(OBJ)\kextract.$o $(OBJ)\kgroup.$o $(OBJ)\transpal.$o $(OBJ)\wad2map.$o $(OBJ)\wad2art.$o
+	-del $(ENGINEOBJS) $(EDITOROBJS) $(OBJ)\kextract.$o $(OBJ)\kgroup.$o $(OBJ)\transpal.$o $(OBJ)\wad2map.$o $(OBJ)\wad2art.$o
 veryclean: clean
 	-del /Q $(OBJ)\$(ENGINELIB) $(OBJ)\$(EDITORLIB) $(UTILS) *.map *.manifest *.pdb
 

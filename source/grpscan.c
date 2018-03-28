@@ -24,10 +24,10 @@ struct grpfile *foundgrps = NULL;
 #define GRPCACHEFILE "grpfiles.cache"
 static struct grpcache {
     struct grpcache *next;
+    char name[BMAX_PATH+1];
     int32_t size;
     int32_t mtime;
     int32_t crcval;
-    char name[BMAX_PATH];
 }
 *grpcache = NULL, *usedgrpcache = NULL;
 
@@ -67,7 +67,7 @@ static void FreeGroupsCache(void) {
 
     while (grpcache) {
         fg = grpcache->next;
-        Bfree(grpcache);
+        free(grpcache);
         grpcache = fg;
     }
 }
@@ -78,13 +78,6 @@ int32_t ScanGroups(void) {
     struct grpfile *grp;
     char *fn;
     struct Bstat st;
-#define BUFFER_SIZE (1024 * 1024 * 8)
-    uint8_t *buf = Bmalloc(BUFFER_SIZE);
-
-    if (!buf) {
-        initprintf("Error allocating %d byte buffer to scan GRPs!\n", BUFFER_SIZE);
-        return 0;
-    }
 
     initprintf("Scanning for GRP files...\n");
 
@@ -100,13 +93,13 @@ int32_t ScanGroups(void) {
         if (fg) {
             if (findfrompath(sidx->name, &fn)) continue;	// failed to resolve the filename
             if (Bstat(fn, &st)) {
-                Bfree(fn);
+                free(fn);
                 continue;
             }	// failed to stat the file
-            Bfree(fn);
+            free(fn);
             if (fg->size == st.st_size && fg->mtime == st.st_mtime) {
                 grp = (struct grpfile *)Bcalloc(1, sizeof(struct grpfile));
-                grp->name = Bstrdup(sidx->name);
+                grp->name = strdup(sidx->name);
                 grp->crcval = fg->crcval;
                 grp->size = fg->size;
                 grp->next = foundgrps;
@@ -126,6 +119,7 @@ int32_t ScanGroups(void) {
         {
             int32_t b, fh;
             int32_t crcval;
+            char buf[16*512];
 
             fh = openfrompath(sidx->name, BO_RDONLY|BO_BINARY, BS_IREAD);
             if (fh < 0) continue;
@@ -134,15 +128,15 @@ int32_t ScanGroups(void) {
             initprintf(" Checksumming %s...", sidx->name);
             crc32init((uint32_t *)&crcval);
             do {
-                b = read(fh, buf, BUFFER_SIZE);
+                b = read(fh, buf, sizeof(buf));
                 if (b > 0) crc32block((uint32_t *)&crcval, (uint8_t *)buf, b);
-            } while (b == BUFFER_SIZE);
+            } while (b == sizeof(buf));
             crc32finish((uint32_t *)&crcval);
             close(fh);
             initprintf(" Done\n");
 
             grp = (struct grpfile *)Bcalloc(1, sizeof(struct grpfile));
-            grp->name = Bstrdup(sidx->name);
+            grp->name = strdup(sidx->name);
             grp->crcval = crcval;
             grp->size = st.st_size;
             grp->next = foundgrps;
@@ -169,19 +163,15 @@ int32_t ScanGroups(void) {
             for (fg = usedgrpcache; fg; fg=fgg) {
                 fgg = fg->next;
                 fprintf(fp, "\"%s\" %d %d %d\n", fg->name, fg->size, fg->mtime, fg->crcval);
-                Bfree(fg);
+                free(fg);
                 i++;
             }
             fclose(fp);
         }
 //        initprintf("Found %d recognized GRP %s.\n",i,i>1?"files":"file");
-        if (buf)
-            Bfree(buf);
         return 0;
     }
     initprintf("Found no recognized GRP files!\n");
-    if (buf)
-        Bfree(buf);
     return 0;
 }
 
@@ -190,8 +180,8 @@ void FreeGroups(void) {
 
     while (foundgrps) {
         fg = foundgrps->next;
-        Bfree((char*)foundgrps->name);
-        Bfree(foundgrps);
+        free((char*)foundgrps->name);
+        free(foundgrps);
         foundgrps = fg;
     }
 }

@@ -213,7 +213,7 @@ void scriptfile_preparse(scriptfile *sf, char *tx, int32_t flen)
     }
 
     sf->linenum = numcr;
-    sf->lineoffs = (int32_t *)Bmalloc(sf->linenum*sizeof(int32_t));
+    sf->lineoffs = (int32_t *)malloc(sf->linenum*sizeof(int32_t));
 
     //Preprocess file for comments (// and /*...*/, and convert all whitespace to single spaces)
     nflen = 0; ws = 0; cs = 0; numcr = 0; inquote = 0;
@@ -272,18 +272,18 @@ scriptfile *scriptfile_fromfile(char *fn)
     if (fp<0) return NULL;
 
     flen = kfilelength(fp);
-    tx = (char *) Bmalloc(flen + 2);
+    tx = (char *) malloc(flen + 2);
     if (!tx)
     {
         kclose(fp);
         return NULL;
     }
 
-    sf = (scriptfile*) Bmalloc(sizeof(scriptfile));
+    sf = (scriptfile*) malloc(sizeof(scriptfile));
     if (!sf)
     {
         kclose(fp);
-        Bfree(tx);
+        free(tx);
         return NULL;
     }
 
@@ -293,7 +293,7 @@ scriptfile *scriptfile_fromfile(char *fn)
     kclose(fp);
 
     scriptfile_preparse(sf,tx,flen);
-    sf->filename = Bstrdup(fn);
+    sf->filename = strdup(fn);
 
     return sf;
 }
@@ -308,17 +308,17 @@ scriptfile *scriptfile_fromstring(char *string)
 
     flen = strlen(string);
 
-    tx = (char *) Bmalloc(flen + 2);
+    tx = (char *) malloc(flen + 2);
     if (!tx) return NULL;
 
-    sf = (scriptfile*) Bmalloc(sizeof(scriptfile));
+    sf = (scriptfile*) malloc(sizeof(scriptfile));
     if (!sf)
     {
-        Bfree(tx);
+        free(tx);
         return NULL;
     }
 
-    Bmemcpy(tx, string, flen);
+    memcpy(tx, string, flen);
     tx[flen] = tx[flen+1] = 0;
 
     scriptfile_preparse(sf,tx,flen);
@@ -330,12 +330,12 @@ scriptfile *scriptfile_fromstring(char *string)
 void scriptfile_close(scriptfile *sf)
 {
     if (!sf) return;
-    if (sf->lineoffs) Bfree(sf->lineoffs);
-    if (sf->textbuf) Bfree(sf->textbuf);
-    if (sf->filename) Bfree(sf->filename);
+    if (sf->lineoffs) free(sf->lineoffs);
+    if (sf->textbuf) free(sf->textbuf);
+    if (sf->filename) free(sf->filename);
     sf->textbuf = NULL;
     sf->filename = NULL;
-    Bfree(sf);
+    free(sf);
 }
 
 int32_t scriptfile_eof(scriptfile *sf)
@@ -357,7 +357,7 @@ static char * getsymbtabspace(int32_t reqd)
     if (symbtablength + reqd > symbtaballoclength)
     {
         for (i=max(symbtaballoclength,SYMBTABSTARTSIZE); symbtablength+reqd>i; i<<=1);
-        np = (char *)Brealloc(symbtab, i); if (!np) return NULL;
+        np = (char *)realloc(symbtab, i); if (!np) return NULL;
         symbtab = np; symbtaballoclength = i;
     }
 
@@ -415,7 +415,7 @@ int32_t scriptfile_addsymbolvalue(char *name, int32_t val)
 
 void scriptfile_clearsymbols(void)
 {
-    if (symbtab) Bfree(symbtab);
+    if (symbtab) free(symbtab);
     symbtab = NULL;
     symbtablength = 0;
     symbtaballoclength = 0;

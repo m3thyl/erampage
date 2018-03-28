@@ -40,7 +40,7 @@ extern "C" {
 #define MAXSPRITESONSCREEN 4096
 #define MAXUNIQHUDID 256 //Extra slots so HUD models can store animation state without messing game sprites
 
-#define RESERVEDPALS 4 // don't forget to increment this when adding reserved pals
+#define RESERVEDPALS 2 // don't forget to increment this when adding reserved pals
 #define DETAILPAL   (MAXPALOOKUPS - 1)
 #define GLOWPAL     (MAXPALOOKUPS - 2)
 #define SPECULARPAL (MAXPALOOKUPS - 3)
@@ -67,7 +67,19 @@ extern "C" {
 #  define EXTERN extern
 #endif
 
-#pragma pack(push,1)
+#ifdef __GNUC__
+#define BPACK __attribute__ ((packed))
+#else
+#define BPACK
+#endif
+
+#ifdef _MSC_VER
+#pragma pack(1)
+#endif
+
+#ifdef __WATCOMC__
+#pragma pack(push,1);
+#endif
 
 //ceilingstat/floorstat:
 //   bit 0: 1 = parallaxing, 0 = not                                 "P"
@@ -85,7 +97,7 @@ extern "C" {
 //   bits 9-15: reserved
 
     //40 bytes
-typedef struct
+typedef struct BPACK
 {
     int16_t wallptr, wallnum;
     int32_t ceilingz, floorz;
@@ -114,7 +126,7 @@ typedef struct
 //   bits 10-15: reserved
 
     //32 bytes
-typedef struct
+typedef struct BPACK
 {
     int32_t x, y;
     int16_t point2, nextwall, nextsector, cstat;
@@ -136,13 +148,11 @@ typedef struct
 //   bit 7: 1 = Real centered centering, 0 = foot center             "C"
 //   bit 8: 1 = Blocking sprite (use with hitscan / cliptype 1)      "H"
 //   bit 9: 1 = Transluscence reversing, 0 = normal                  "T"
-//   bits 10-12: reserved
-//   bit 13: 1 = does not cast shadow
-//   bit 14: 1 = invisible but casts shadow
+//   bits 10-14: reserved
 //   bit 15: 1 = Invisible sprite, 0 = not invisible
 
     //44 bytes
-typedef struct
+typedef struct BPACK
 {
     int32_t x, y, z;
     int16_t cstat, picnum;
@@ -155,7 +165,7 @@ typedef struct
     int16_t lotag, hitag, extra;
 } spritetype;
 
-typedef struct {
+typedef struct BPACK {
     uint32_t mdanimtims;
     int16_t mdanimcur;
     int16_t angoff;
@@ -168,7 +178,7 @@ typedef struct {
     spritetype *tspr;
 } spriteext_t;
 
-typedef struct {
+typedef struct BPACK {
     float smoothduration;
     int16_t mdcurframe, mdoldframe;
     int16_t mdsmooth;
@@ -265,12 +275,6 @@ EXTERN char gotsector[(MAXSECTORS+7)>>3];
 EXTERN char captureformat;
 EXTERN char editorcolors[256];
 
-EXTERN int32_t faketilesiz[MAXTILES];
-EXTERN char *faketiledata[MAXTILES];
-
-EXTERN char spritecol2d[MAXTILES][2];
-extern char vgapal16[4*256];
-
 extern char vgapalette[5*256];
 extern uint32_t drawlinepat;
 
@@ -301,9 +305,6 @@ extern char noclip;
 
 EXTERN int32_t editorzrange[2];
 
-EXTERN int32_t myconnectindex, numplayers;
-EXTERN int32_t connecthead, connectpoint2[MAXPLAYERS];
-
 static inline int32_t getrendermode(void)
 {
 #ifndef POLYMOST
@@ -331,13 +332,13 @@ SPRITE VARIABLES:
     EXTERN short nextspritesect[MAXSPRITES], nextspritestat[MAXSPRITES];
 
     Example: if the linked lists look like the following:
-         ????????????????
+         ????????????????????????????????
                Sector lists:               Status lists:               
-         ????????????????J
+         ???????????????????????????????J
            Sector0:  4, 5, 8             Status0:  2, 0, 8             
            Sector1:  16, 2, 0, 7         Status1:  4, 5, 16, 7, 3, 9   
            Sector2:  3, 9                                              
-         ????????????????
+         ????????????????????????????????
     Notice that each number listed above is shown exactly once on both the
         left and right side.  This is because any sprite that exists must
         be in some sector, and must have some kind of status that you define.
@@ -415,7 +416,7 @@ OTHER VARIABLES:
             you call the loadboard function.
 ***************************************************************************/
 
-typedef struct {
+typedef struct BPACK {
     int32_t x, y, z;
 } vec3_t;
 
@@ -423,8 +424,6 @@ typedef struct {
     vec3_t pos;
     int16_t hitsprite, hitwall, hitsect;
 } hitdata_t;
-
-#pragma pack(pop)
 
 int32_t    preinitengine(void);	// a partial setup of the engine used for launch windows
 int32_t    initengine(void);
@@ -557,7 +556,7 @@ typedef struct  s_equation {
 typedef struct  s_point2d {
     float       x, y;
 }               _point2d;
-int32_t             wallvisible(int32_t x, int32_t y, int16_t wallnum);
+int32_t             wallvisible(int16_t wallnum);
 
 #define STATUS2DSIZ 144
 #define STATUS2DSIZ2 26
@@ -604,7 +603,7 @@ extern int32_t glanisotropy;
 extern int32_t glusetexcompr;
 extern int32_t gltexfiltermode;
 extern int32_t glredbluemode;
-extern int32_t glusetexcache;
+extern int32_t glusetexcache, glusetexcachecompression;
 extern int32_t glmultisample, glnvmultisamplehint;
 extern int32_t glwidescreen, glprojectionhacks;
 extern int32_t gltexmaxsize;
@@ -700,6 +699,16 @@ void hash_add(hashtable_t *t, const char *s, int32_t key);
 #ifdef POLYMER
 # include "polymer.h"
 #endif
+
+#ifdef _MSC_VER
+#pragma pack()
+#endif
+
+#ifdef __WATCOMC__
+#pragma pack(pop)
+#endif
+
+#undef BPACK
 
 #ifdef __cplusplus
 }

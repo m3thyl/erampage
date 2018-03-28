@@ -110,11 +110,12 @@ void GAME_onshowosd(int32_t shown) {
     // fix for TCs like Layre which don't have the BGTILE for some reason
     // most of this is copied from my dummytile stuff in defs.c
     if (!tilesizx[BGTILE] || !tilesizy[BGTILE]) {
+        extern char faketile[MAXTILES];
         int32_t j;
 
         tilesizx[BGTILE] = BGTILE_SIZEX;
         tilesizy[BGTILE] = BGTILE_SIZEY;
-        faketilesiz[BGTILE] = -1;
+        faketile[BGTILE] = 1;
         picanm[BGTILE] = 0;
 
         j = 15;
@@ -126,9 +127,9 @@ void GAME_onshowosd(int32_t shown) {
     }
 
     G_UpdateScreenArea();
-
-    if (numplayers == 1 && ((shown && !ud.pause_on) || (!shown && ud.pause_on)))
-        KB_KeyDown[sc_Pause] = 1;
+    if (numplayers == 1)
+        if ((shown && !ud.pause_on) || (!shown && ud.pause_on))
+            KB_KeyDown[sc_Pause] = 1;
 }
 
 void GAME_clearbackground(int32_t c, int32_t r) {

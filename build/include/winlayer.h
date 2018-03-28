@@ -6,7 +6,7 @@
 #define __build_interface_layer__ WIN
 
 extern int32_t backgroundidle;	// set to 1 to tell winlayer to go to idle priority when inactive
-extern uint32_t maxrefreshfreq;
+extern unsigned maxrefreshfreq;
 
 extern int32_t glusecds;
 
