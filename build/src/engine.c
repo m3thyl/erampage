@@ -12227,7 +12227,7 @@ void hash_free(hashtable_t *t)
 
 #if 1
 // djb3 algorithm
-inline uint32_t HASH_getcode(const char *s)
+uint32_t HASH_getcode(const char *s)
 {
     uint32_t h = 5381;
     int32_t ch;

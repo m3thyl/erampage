@@ -2479,7 +2479,6 @@ xd3_config_stream(xd3_stream *stream,
  Getblk interface
  ***********************************************************/
 
-inline
 xoff_t xd3_source_eof(const xd3_source *src)
 {
   xoff_t r = (src->blksize * src->max_blkno) + (xoff_t)src->onlastblk;
@@ -2487,7 +2486,6 @@ xoff_t xd3_source_eof(const xd3_source *src)
   return r;
 }
 
-inline
 usize_t xd3_bytes_on_srcblk (xd3_source *src, xoff_t blkno)
 {
   usize_t r = (blkno == src->max_blkno ? 

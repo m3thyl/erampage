@@ -87,7 +87,7 @@ static const uint16_t __single_hash[256] =
 
 /* Update the checksum state. */
 #if ADLER_LARGE_CKSUM
-inline uint32_t
+uint32_t
 xd3_large_cksum_update (uint32_t cksum,
 			const uint8_t *base,
 			usize_t look) {
