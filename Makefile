@@ -153,7 +153,7 @@ EDITOROBJS=$(OBJ)/astub.$o
 # PLATFORM SPECIFIC SETTINGS
 
 ifeq ($(PLATFORM),LINUX)
-	OURCFLAGS	+= -fno-pic
+	OURCFLAGS	+= -fPIC
 	NASMFLAGS	+= -f elf
 	LIBS		+= -lvorbisfile -lvorbis -logg 
 	USE_OPENAL	= 0
